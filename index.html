@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reeple – Gantt Interactif & Exhaustif</title>
+
+    <style>
+        :root {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0f172a;
+            --col: #475569; /* Collectif / Tous */
+            --mkt: #ea580c; /* Inès */
+            --da:  #9333ea; /* Benoît */
+            --ux:  #4f46e5; /* Candice */
+            --dev: #059669; /* Enzo */
+            --gp:  #2563eb; /* Anatole */
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            color: #1e293b;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .gantt-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .header {
+            background: #0f172a;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #ef4444;
+            flex-shrink: 0;
+        }
+        .header-titles h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+        }
+        .header-titles p {
+            font-size: 13px;
+            color: #94a3b8;
+            margin: 4px 0 0 0;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(255,255,255,0.1);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .legend-item:hover { background: rgba(255,255,255,0.2); }
+        .legend-item.inactive { opacity: 0.3; filter: grayscale(1); }
+        .dot { width: 12px; height: 12px; border-radius: 3px; }
+
+        .timeline-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: auto;
+            position: relative;
+            display: flex;
+        }
+
+        .fixed-column {
+            width: 400px;
+            flex-shrink: 0;
+            background: white;
+            border-right: 2px solid #334155;
+            position: sticky;
+            left: 0;
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fixed-header {
+            height: 44px;
+            padding: 14px 20px;
+            background: #1e293b;
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+        }
+
+        .scrollable-grid {
+            position: relative;
+            flex: 1;
+            min-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            background-image: linear-gradient(to right, #f1f5f9 1px, transparent 1px);
+            background-size: calc(100% / 19) 100%;
+        }
+
+        .timeline-header {
+            display: flex;
+            height: 44px;
+            background: #1e293b;
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .month-col {
+            flex: 1;
+            text-align: center;
+            padding: 14px 0;
+            border-right: 1px solid #334155;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .row-container { display: flex; width: 100%; }
+
+        .phase-row {
+            background: #cbd5e1;
+            font-weight: 900;
+            font-size: 13px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #94a3b8;
+            min-height: 40px;
+        }
+        .phase-row .fixed-cell { padding: 10px 20px; color: #0f172a; }
+
+        .specialty-row {
+            background: #f8fafc;
+            font-weight: 800;
+            font-size: 11px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #e2e8f0;
+            color: #475569;
+            min-height: 36px;
+        }
+        .specialty-row .fixed-cell { padding: 8px 20px; font-style: italic; }
+
+        .task-row {
+            border-bottom: 1px solid #f1f5f9;
+            min-height: 50px;
+            transition: background 0.2s;
+        }
+        .task-row:hover { background: #fdf2f2; }
+        .task-row.dimmed { opacity: 0.1; filter: grayscale(1); }
+
+        .fixed-cell {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .task-label {
+            padding: 8px 20px 8px 30px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #334155;
+            line-height: 1.4;
+            white-space: normal;
+        }
+
+        .grid-cell {
+            position: relative;
+            flex: 1;
+            height: 100%;
+        }
+
+        .task-bar {
+            position: absolute;
+            height: 28px;
+            border-radius: 4px;
+            color: white;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 0 8px;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 4%;
+        }
+        .task-bar span {
+            position: relative;
+            z-index: 2;
+        }
+        .task-bar:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+            transform: translateY(-50%) scaleY(1.05);
+            z-index: 30;
+        }
+
+        /* Lignes de jalons sur toute la hauteur */
+        .milestone-container {
+            position: absolute;
+            top: 44px;  /* juste sous la barre des mois */
+            bottom: 0;
+            left: 0;
+            right: 0;
+            pointer-events: none;
+            z-index: 45;
+        }
+        .milestone-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 0;
+            border-left: 2px solid #ef4444;
+        }
+        .milestone-tag {
+            position: absolute;
+            background: #ef4444;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 900;
+            white-space: nowrap;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+            transform: translateX(-50%);
+            border: 2px solid white;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #tooltip {
+            position: fixed;
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 9999;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            border: 1px solid #334155;
+            line-height: 1.5;
+            max-width: 300px;
+        }
+        #tooltip strong { color: #38bdf8; font-size: 14px; display: block; margin-bottom: 4px;}
+        #tooltip .dates { color: #94a3b8; font-size: 12px; margin-top: 6px; display: inline-block; background: #1e293b; padding: 2px 6px; border-radius: 4px;}
+    </style>
+</head>
+<body>
+
+<div class="gantt-wrapper">
+    <div class="header">
+        <div class="header-titles">
+            <h1>REEPLE – MY DIGITAL START-UP</h1>
+            <p>Planning de référence détaillé (Déc. 2025 – Juin 2027) • Cliquez sur un rôle pour filtrer</p>
+        </div>
+        <div class="legend">
+            <div class="legend-item" data-filter="col"><div class="dot" style="background:var(--col)"></div> Tous (Collectif)</div>
+            <div class="legend-item" data-filter="mkt"><div class="dot" style="background:var(--mkt)"></div> Inès (Mkt)</div>
+            <div class="legend-item" data-filter="da"><div class="dot" style="background:var(--da)"></div> Benoît (DA)</div>
+            <div class="legend-item" data-filter="ux"><div class="dot" style="background:var(--ux)"></div> Candice (UX)</div>
+            <div class="legend-item" data-filter="dev"><div class="dot" style="background:var(--dev)"></div> Enzo (Dev)</div>
+            <div class="legend-item" data-filter="gp"><div class="dot" style="background:var(--gp)"></div> Anatole (GP)</div>
+        </div>
+    </div>
+
+    <div class="timeline-wrapper">
+        <div class="fixed-column" id="fixed-column-content"></div>
+        <div class="scrollable-grid" id="gantt-content"></div>
+    </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+    const projectStart = new Date(2025, 11, 1).getTime();
+    const projectEnd   = new Date(2027, 5, 30).getTime();
+    const totalDuration = projectEnd - projectStart;
+
+    const getPos = (startStr, endStr) => {
+        const s = new Date(startStr).getTime();
+        const e = new Date(endStr).getTime();
+        const left = ((s - projectStart) / totalDuration) * 100;
+        const width = ((e - s) / totalDuration) * 100;
+        return `left: ${Math.max(0, left)}%; width: ${Math.max(1, width)}%;`;
+    };
+
+    const getLinePos = (dateStr) => {
+        const d = new Date(dateStr).getTime();
+        return `left: ${((d - projectStart) / totalDuration) * 100}%;`;
+    };
+
+    const formatDate = (dateStr) =>
+        new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    const monthsList = ['D25', 'J26', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D', 'J27', 'F', 'M', 'A', 'M', 'J'];
+
+    const rowsData = [
+        { type: 'phase', label: 'Jalon 0 – Kick-off / Lean Start-up' },
+        { type: 'specialty', label: 'Anatole – Chef de Projet & Collectif' },
+        { type: 'task', label: 'Valider premières hypothèses via interviews et recherches', start: '2025-12-01', end: '2025-12-15', role: 'gp',  shortName: 'Interviews & Recherches' },
+        { type: 'task', label: 'Concevoir premier MVP et tester rapidement',             start: '2025-12-10', end: '2025-12-31', role: 'col', shortName: 'MVP & Tests' },
+        { type: 'task', label: 'Préparer mémo technique et court pitch',                 start: '2025-12-15', end: '2025-12-31', role: 'gp',  shortName: 'Mémo & Pitch' },
+
+        { type: 'phase', label: 'Jalon 1 – Go / No Go (M1 - Consolidation)' },
+        { type: 'specialty', label: 'Inès – Marketing & Stratégie' },
+        { type: 'task', label: 'Étude de marché boutiques de jeux et clients',           start: '2026-01-01', end: '2026-02-15', role: 'mkt', shortName: 'Étude de marché' },
+        { type: 'task', label: 'Identifier & hiérarchiser cibles socio-démo',            start: '2026-02-01', end: '2026-03-15', role: 'mkt', shortName: 'Cibles & Personas' },
+        { type: 'task', label: 'Formuler proposition de valeur (promesse, bénéfices)',   start: '2026-03-01', end: '2026-04-15', role: 'mkt', shortName: 'Prop. de valeur' },
+
+        { type: 'specialty', label: 'Benoît – Direction Artistique' },
+        { type: 'task', label: 'Moodboard & première V1 charte graphique',               start: '2026-01-15', end: '2026-03-01', role: 'da',  shortName: 'Moodboard & Charte' },
+        { type: 'task', label: 'Rédiger brief créatif (cible, promesse, axes)',          start: '2026-03-01', end: '2026-04-15', role: 'da',  shortName: 'Brief Créatif' },
+
+        { type: 'specialty', label: 'Candice – UX/UI Design' },
+        { type: 'task', label: 'Questionnaires / interviews usages en boutique',         start: '2026-01-15', end: '2026-02-28', role: 'ux',  shortName: 'Recherche UX' },
+        { type: 'task', label: 'Formaliser personas & parcours (vendeur, client)',       start: '2026-02-15', end: '2026-03-15', role: 'ux',  shortName: 'Parcours Utilisateurs' },
+        { type: 'task', label: 'Définir fonctionnalités & arborescence',                 start: '2026-03-01', end: '2026-03-31', role: 'ux',  shortName: 'Arborescence' },
+        { type: 'task', label: 'Réaliser 1er prototype (Figma/No-code) écrans clés',     start: '2026-03-15', end: '2026-04-15', role: 'ux',  shortName: 'Proto Figma' },
+        { type: 'task', label: 'Organiser tests utilisateurs & analyser retours',        start: '2026-04-01', end: '2026-04-26', role: 'ux',  shortName: 'Tests Usabilité' },
+
+        { type: 'specialty', label: 'Enzo – Développement Web' },
+        { type: 'task', label: 'Valider le périmètre technique réaliste de la V1',       start: '2026-02-01', end: '2026-03-01', role: 'dev', shortName: 'Périmètre Tech' },
+        { type: 'task', label: 'Choisir/justifier solution technique (stack, hébergement)',start:'2026-03-01', end:'2026-04-15', role:'dev', shortName:'Choix Stack' },
+
+        { type: 'specialty', label: 'Anatole – Gestion de projet / Collectif' },
+        { type: 'task', label: 'Mise en place méthodo gestion (planning, outils, jalons)',start:'2026-01-01', end:'2026-01-31', role:'gp',   shortName:'Méthodo GP' },
+        { type: 'task', label: 'Coordonner dossier technique (rassembler contributions)',start:'2026-04-01', end:'2026-04-26', role:'gp',   shortName:'Dossier Technique' },
+        { type: 'task', label: 'S\'assurer que le prototype & business model sont prêts',start:'2026-04-10', end:'2026-04-26', role:'gp',   shortName:'Validation J1' },
+
+        { type: 'phase', label: 'Jalon 2 – Cadrage / Préproduction' },
+        { type: 'specialty', label: 'Inès + Anatole – Stratégie & Business' },
+        { type: 'task', label: 'Consolider proposition de valeur, cibles & positionnement',start:'2026-05-01', end:'2026-05-20', role:'gp',  shortName:'Consolidation Stratégie' },
+        { type: 'task', label: 'Définir canaux distribution & process de vente',         start: '2026-05-15', end: '2026-06-10', role: 'mkt', shortName: 'Canaux de vente' },
+        { type: 'task', label: 'Estimer ressources Mkt, budget & messages clés',        start: '2026-05-20', end: '2026-06-19', role: 'gp',  shortName: 'Ressources & Messages' },
+
+        { type: 'specialty', label: 'Benoît – Direction Artistique' },
+        { type: 'task', label: 'Estimer charge & besoins créa (supports, volumes)',      start: '2026-05-01', end: '2026-05-20', role: 'da',  shortName: 'Estimation Créa' },
+        { type: 'task', label: 'Identifier besoins compétences compl. (motion, photo)', start: '2026-05-15', end: '2026-06-01', role: 'da',  shortName: 'Besoins Externes' },
+        { type: 'task', label: 'Planifier grandes étapes production graphique',         start: '2026-06-01', end: '2026-06-19', role: 'da',  shortName: 'Planning Créa' },
+
+        { type: 'specialty', label: 'Candice – UX/UI Design' },
+        { type: 'task', label: 'Chiffrer et planifier partie UX/UI',                    start: '2026-05-01', end: '2026-05-31', role: 'ux',  shortName: 'Chiffrage UX' },
+        { type: 'task', label: 'Construire roadmap UX/UI & prioriser évolutions',       start: '2026-06-01', end: '2026-06-19', role: 'ux',  shortName: 'Roadmap UX' },
+
+        { type: 'specialty', label: 'Enzo – Développement Web' },
+        { type: 'task', label: 'Budgéter & planifier dev (sprints, ressources)',        start: '2026-05-01', end: '2026-05-31', role: 'dev', shortName: 'Planification Sprints' },
+        { type: 'task', label: 'Poser roadmap tech (évolutions proto & contraintes)',   start: '2026-06-01', end: '2026-06-19', role: 'dev', shortName: 'Roadmap Technique' },
+
+        { type: 'specialty', label: 'Collectif – Data / RGPD' },
+        { type: 'task', label: 'Vérifier besoins data & conformité RGPD minimale',      start: '2026-05-01', end: '2026-06-19', role: 'col', shortName: 'Audit Data / RGPD' },
+
+        { type: 'phase', label: 'Jalon 3 – Réalisation & Lancement' },
+        { type: 'specialty', label: 'Inès – Marketing & Stratégie' },
+        { type: 'task', label: 'Définir objectifs SMART & KPI de lancement',           start: '2026-09-01', end: '2026-10-31', role: 'mkt', shortName: 'Objectifs SMART' },
+        { type: 'task', label: 'Choisir leviers acquisition (réseaux, events, partenaires)',start:'2026-11-01',end:'2027-02-28',role:'mkt', shortName:'Leviers Acquisition' },
+        { type: 'task', label: 'Construire calendrier éditorial de communication',      start: '2027-03-01', end: '2027-06-25', role: 'mkt', shortName: 'Calendrier Éditorial' },
+
+        { type: 'specialty', label: 'Benoît – Direction Artistique' },
+        { type: 'task', label: 'Finaliser l\'identité visuelle',                        start: '2026-09-01', end: '2026-12-31', role: 'da',  shortName: 'Identité Finale' },
+        { type: 'task', label: 'Décliner identité sur supports (présentations, visuels)',start:'2027-01-01',end:'2027-06-25', role:'da',   shortName:'Déclinaisons Supports' },
+
+        { type: 'specialty', label: 'Candice – UX/UI Design' },
+        { type: 'task', label: 'Consolider prototype final selon retours',              start: '2026-09-01', end: '2027-02-28', role: 'ux',  shortName: 'Prototype Final' },
+        { type: 'task', label: 'Mener dernière campagne de tests',                     start: '2027-03-01', end: '2027-05-31', role: 'ux',  shortName: 'Tests Finaux' },
+
+        { type: 'specialty', label: 'Enzo – Développement Web' },
+        { type: 'task', label: 'Poursuivre dev jusqu\'à version stable démontrable',    start: '2026-09-01', end: '2027-04-30', role: 'dev', shortName: 'Dev MVP Stable' },
+        { type: 'task', label: 'Mise en place déploiement prototype en ligne',         start: '2027-05-01', end: '2027-06-25', role: 'dev', shortName: 'Déploiement Ligne' },
+
+        { type: 'specialty', label: 'Collectif – Data / Suivi' },
+        { type: 'task', label: 'Prévoir indicateurs de suivi (usage, tests, retours)',  start: '2027-04-01', end: '2027-06-25', role: 'col', shortName: 'Dashboard KPI' },
+    ];
+
+    let fixedHtml = '<div class="fixed-header">Phases & Tâches Détaillées</div>';
+    let gridHtml = `
+      <div class="milestone-container">
+        <div class="milestone-line" style="${getLinePos('2026-04-26')}">
+          <div class="milestone-tag" style="top: 0;">JALON 1 (26/04/26)</div>
+        </div>
+        <div class="milestone-line" style="${getLinePos('2026-06-19')}">
+          <div class="milestone-tag" style="top: 32px; background:#f97316;">JALON 2 (19/06/26)</div>
+        </div>
+        <div class="milestone-line" style="${getLinePos('2027-06-25')}">
+          <div class="milestone-tag" style="top: 0; right:10px; left:auto; transform:none; background:#10b981;">
+            JALON 3 (FIN JUIN 27)
+          </div>
+        </div>
+      </div>
+      <div class="timeline-header">
+        ${monthsList.map(m => `<div class="month-col">${m}</div>`).join('')}
+      </div>
+    `;
+
+    rowsData.forEach(row => {
+        if (row.type === 'phase') {
+            fixedHtml += `<div class="phase-row"><div class="fixed-cell">${row.label}</div></div>`;
+            gridHtml  += `<div class="phase-row"></div>`;
+        } else if (row.type === 'specialty') {
+            fixedHtml += `<div class="specialty-row"><div class="fixed-cell">${row.label}</div></div>`;
+            gridHtml  += `<div class="specialty-row"></div>`;
+        } else if (row.type === 'task') {
+            fixedHtml += `
+              <div class="task-row task-row-match" data-role="${row.role}">
+                <div class="fixed-cell task-label">${row.label}</div>
+              </div>
+            `;
+            gridHtml  += `
+              <div class="task-row task-row-match" data-role="${row.role}">
+                <div class="grid-cell">
+                  <div class="task-bar"
+                       style="${getPos(row.start, row.end)} background: var(--${row.role});"
+                       data-name="${row.label.replace(/"/g, '&quot;')}"
+                       data-start="${formatDate(row.start)}"
+                       data-end="${formatDate(row.end)}"
+                       data-role="${row.role}">
+                    <span>${row.shortName}</span>
+                  </div>
+                </div>
+              </div>
+            `;
+        }
+    });
+
+    document.getElementById('fixed-column-content').innerHTML = fixedHtml;
+    document.getElementById('gantt-content').innerHTML = gridHtml;
+
+    // Tooltips
+    const tooltip = document.getElementById('tooltip');
+    const roleNames = {
+        col: 'Équipe Collectif',
+        mkt: 'Inès (Marketing)',
+        da : 'Benoît (DA)',
+        ux : 'Candice (UX/UI)',
+        dev: 'Enzo (Dev Web)',
+        gp : 'Anatole (Gestion de projet)'
+    };
+
+    document.querySelectorAll('.task-bar').forEach(bar => {
+        bar.addEventListener('mouseenter', () => {
+            const name  = bar.getAttribute('data-name');
+            const start = bar.getAttribute('data-start');
+            const end   = bar.getAttribute('data-end');
+            const role  = bar.getAttribute('data-role');
+
+            tooltip.innerHTML = `
+                <strong>${name}</strong>
+                Responsable : ${roleNames[role] || '—'}<br>
+                <span class="dates">🗓️ Du ${start} au ${end}</span>
+            `;
+            tooltip.style.opacity = '1';
+        });
+
+        bar.addEventListener('mousemove', (e) => {
+            let x = e.clientX + 15;
+            let y = e.clientY + 15;
+            if (x + 300 > window.innerWidth) x = e.clientX - 320;
+            if (y + 100 > window.innerHeight) y = e.clientY - 120;
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top  = `${y}px`;
+        });
+
+        bar.addEventListener('mouseleave', () => {
+            tooltip.style.opacity = '0';
+        });
+    });
+
+    // Filtre par rôle
+    let activeFilter = null;
+    const legendItems = document.querySelectorAll('.legend-item');
+
+    legendItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const filter = item.getAttribute('data-filter');
+            const fixedRows = document.querySelectorAll('#fixed-column-content .task-row-match');
+            const gridRows  = document.querySelectorAll('#gantt-content .task-row-match');
+
+            if (activeFilter === filter) {
+                activeFilter = null;
+                legendItems.forEach(i => i.classList.remove('inactive'));
+                fixedRows.forEach(r => r.classList.remove('dimmed'));
+                gridRows.forEach(r => r.classList.remove('dimmed'));
+            } else {
+                activeFilter = filter;
+                legendItems.forEach(i => {
+                    if (i.getAttribute('data-filter') === filter) i.classList.remove('inactive');
+                    else i.classList.add('inactive');
+                });
+                fixedRows.forEach(r => {
+                    if (r.getAttribute('data-role') === filter) r.classList.remove('dimmed');
+                    else r.classList.add('dimmed');
+                });
+                gridRows.forEach(r => {
+                    if (r.getAttribute('data-role') === filter) r.classList.remove('dimmed');
+                    else r.classList.add('dimmed');
+                });
+            }
+        });
+    });
+</script>
+</body>
+</html>
